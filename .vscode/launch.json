@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    
+    {
+      "name": "dev",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "dev",
+
+      ]
+    },
+    {
+      "name": "stage",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "stage",
+    
+      ]
+    },
+    {
+      "name": "prod",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "--flavor",
+        "prod",
+ 
+      ]
+    },
+    
+  ],
+  "compounds": []
+}

@@ -1,0 +1,19 @@
+Instructions to build mobile app
+
+1- Setup Flutter 3.29.3 stable
+
+2- Run the following 
+flutter clean
+flutter pub get
+
+3- To build Android apk
+flutter build apk --release --flavor prod
+
+4- To build Android appbundle
+flutter build appbundle --release --flavor prod
+
+5- To build iOS
+flutter build ios --release --flavor prod
+
+Then go toXcode --> Product --> Archive -- Distribute
+

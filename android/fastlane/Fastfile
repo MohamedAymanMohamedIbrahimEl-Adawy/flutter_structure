@@ -1,0 +1,73 @@
+default_platform(:android)
+
+platform :android do
+  # 🔧 1. DEV: Upload to Firebase App Distribution
+  desc "📦 Upload DEV to Firebase App Distribution"
+  lane :firebase_dev do
+    firebase_app_distribution(
+      app: ENV["FIREBASE_APP_ID_ANDROID_DEV"],
+      apk_path: "../build/app/outputs/flutter-apk/app-dev-release.apk",
+      service_credentials_file: "firebase-service-account.json",
+      release_notes: "CI/CD DEV build ##{Time.now.to_i}",
+      # groups: "Dev"
+    )
+  end
+
+  # 🔧 2. STAGE: Upload to Firebase App Distribution
+  desc "📦 Upload STAGE to Firebase App Distribution"
+  lane :firebase_stage do
+    firebase_app_distribution(
+      app: ENV["FIREBASE_APP_ID_ANDROID_STAGE"],
+      apk_path: "../build/app/outputs/flutter-apk/app-stage-release.apk",
+      service_credentials_file: "firebase-service-account.json",
+      release_notes: "CI/CD STAGE build ##{Time.now.to_i}",
+      # groups: "Dev"
+    )
+  end
+
+  # 🚀 3. STAGE: Upload to Google Play (internal testing)
+  desc "🚀 Upload STAGE to Google Play internal testing"
+  lane :release_stage do
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      flavor: "stage"
+    )
+
+    upload_to_play_store(
+      track: "internal",
+      release_status: "draft",
+      aab: "../build/app/outputs/bundle/stageRelease/app-stage-release.aab",
+      json_key: "google-play-service-account.json"
+    )
+  end
+
+  # 🔧 4. PROD: Upload to Firebase App Distribution
+  desc "📦 Upload PROD to Firebase App Distribution"
+  lane :firebase_prod do
+    firebase_app_distribution(
+      app: ENV["FIREBASE_APP_ID_ANDROID_PROD"],
+      apk_path: "../build/app/outputs/flutter-apk/app-prod-release.apk",
+      service_credentials_file: "firebase-service-account.json",
+      release_notes: "CI/CD PROD build ##{Time.now.to_i}",
+      # groups: "Dev"
+    )
+  end
+
+  # 🚀 5. PROD: Upload to Google Play (production)
+  desc "🚀 Upload PROD to Google Play production track"
+  lane :release_prod do
+    gradle(
+      task: "bundle",
+      build_type: "Release",
+      flavor: "prod"
+    )
+
+    upload_to_play_store(
+      track: "production",
+      release_status: "completed",
+      aab: "../build/app/outputs/bundle/prodRelease/app-prod-release.aab",
+      json_key: "google-play-service-account.json"
+    )
+  end
+end

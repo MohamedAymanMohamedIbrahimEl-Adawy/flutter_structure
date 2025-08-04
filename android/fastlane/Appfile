@@ -1,0 +1,4 @@
+# Appfile (optional for Android)
+
+# Optional reference, but not necessary unless you want to share metadata
+package_name("com.flutter.structure")

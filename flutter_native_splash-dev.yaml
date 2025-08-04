@@ -1,0 +1,23 @@
+
+# flutter_native_splash-dev.yaml
+flutter_native_splash:
+  color: "#ffffff"
+  image: assets/images/splash/splash.png
+  # branding: assets/images/splash/splash.png
+  # branding_bottom_padding: 24
+  color_dark: "#184974"
+  image_dark: assets/images/splash/splash_dark.png
+  # branding_dark: assets/branding-development.png
+  ios: true
+  fullscreen: true
+
+  android_12:
+    image: assets/images/splash/splash_12.png
+    icon_background_color: "#ffffff"
+    image_dark: assets/images/splash/splash_12_dark.png
+    icon_background_color_dark: "#184974"
+
+  web: false
+  
+# To build splaash for all flavors run the following command
+# dart run flutter_native_splash:create --flavors dev,prod,stage 

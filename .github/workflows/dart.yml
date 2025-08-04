@@ -1,0 +1,189 @@
+# 🍎🤖 iOS and Android CI/CD Flutter
+
+# ----------------------------------------
+# 1. Workflow Triggers
+# The workflow runs on a manual dispatch or a push to the master branch.
+# ----------------------------------------
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - master
+
+# ----------------------------------------
+# 2. Environment Variables
+# These variables are accessible throughout the entire workflow.
+# ----------------------------------------
+env:
+  FLUTTER_VERSION: "3.32.8"
+
+# ----------------------------------------
+# 3. Jobs Configuration
+# This workflow contains two main jobs: one for iOS and one for Android.
+# Each job uses a matrix strategy to handle different build flavors.
+# ----------------------------------------
+jobs:
+  # ----------------------------------------
+  # 🍎 iOS Build Job
+  # Builds and uploads the iOS app to TestFlight for each flavor.
+  # ----------------------------------------
+  ios-build:
+    name: 🍏 iOS Build (${{ matrix.flavor }})
+    runs-on: macos-latest
+
+    strategy:
+      matrix:
+        flavor: [dev, prod, stage]
+
+    steps:
+      - name: 1. 🔄 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 2. 🧩 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: 3. 🚀 Activate FlutterFire CLI
+        run: dart pub global activate flutterfire_cli
+        
+      - name: 4. 🔐 Setup SSH for Fastlane Match
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.MATCH_GIT_PRIVATE_KEY }}" | base64 --decode > ~/.ssh/match_fastlane
+          chmod 600 ~/.ssh/match_fastlane
+          echo "Host github.com
+            HostName github.com
+            IdentityFile ~/.ssh/match_fastlane
+            IdentitiesOnly yes" >> ~/.ssh/config
+
+      - name: 5. 📥 Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+
+      - name: 6. 🚀 Install Fastlane
+        run: gem install fastlane
+
+      - name: 7. 🔐 Setup Firebase Config
+        run: |
+          mkdir -p ios/Runner/firebase/${{ matrix.flavor }}
+          if [ "${{ matrix.flavor }}" = "dev" ]; then
+            echo "${{ secrets.GOOGLE_SERVICE_PLIST_DEV }}" | base64 --decode > ios/Runner/firebase/dev/GoogleService-Info.plist
+          elif [ "${{ matrix.flavor }}" = "stage" ]; then
+            echo "${{ secrets.GOOGLE_SERVICE_PLIST_STAGE }}" | base64 --decode > ios/Runner/firebase/stage/GoogleService-Info.plist
+          elif [ "${{ matrix.flavor }}" = "prod" ]; then
+            echo "${{ secrets.GOOGLE_SERVICE_PLIST_PROD }}" | base64 --decode > ios/Runner/firebase/prod/GoogleService-Info.plist
+          fi
+
+      - name: 8. Set up App Store Connect API Key
+        run: |
+          echo "${{ secrets.APP_STORE_CONNECT_P8_KEY_BASE64 }}" | base64 --decode > AuthKey.p8
+          echo "APP_STORE_CONNECT_KEY_FILEPATH=$GITHUB_WORKSPACE/AuthKey.p8" >> $GITHUB_ENV
+
+      - name: 9. 🛠️ Run Fastlane for ${{ matrix.flavor }}
+        run: fastlane ios ${{ matrix.flavor }}
+        working-directory: ios
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_TYPE: appstore
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+
+  # ----------------------------------------
+  # 🤖 Android Build Job
+  # Builds and uploads the Android app to Firebase App Distribution for each flavor.
+  # Also builds AAB for prod and uploads to Google Play.
+  # ----------------------------------------
+  android-build:
+    name: 🤖 Android Build (${{ matrix.flavor }})
+    runs-on: macos-latest
+
+    strategy:
+      matrix:
+        flavor: [dev, stage, prod]
+
+    steps:
+      - name: 1. 🔄 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 2. 🧩 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: 3. 📦 Install dependencies
+        run: flutter pub get
+
+      # Optional steps, uncomment to enable static analysis and unit tests.
+      # - name: 🔍 Analyze code
+      #   run: flutter analyze
+
+      # - name: ✅ Run unit tests
+      #   run: flutter test
+
+      - name: 4. 🔐 Android Signing & Firebase Setup
+        run: |
+          echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
+          echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/key.jks
+          echo "${{ secrets.ANDROID_GOOGLE_SERVICE_JSON }}" | base64 --decode > android/app/google-services.json
+          echo "${{ secrets.FIREBASE_DISTRIBUTION_SERVICE }}" | base64 --decode > android/firebase-service-account.json
+          echo "${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}" | base64 --decode > android/google-play-service-account.json
+
+      - name: 5. 🛠️ Build APK
+        run: flutter build apk --release --flavor ${{ matrix.flavor }}
+
+      - name: 6. 🧠 Install bundler & fastlane
+        run: |
+          gem install bundler
+          bundle install
+        working-directory: android
+
+      - name: 7. 📤 Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.flavor }}-apk-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk
+
+      - name: 8. 🚀 Upload to Firebase App Distribution (dev)
+        if: matrix.flavor == 'dev'
+        run: bundle exec fastlane firebase_dev
+        working-directory: android
+        env:
+          FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID_DEV }}
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+
+      - name: 8. 🚀 Upload to Firebase App Distribution (stage)
+        if: matrix.flavor == 'stage'
+        run: bundle exec fastlane firebase_stage
+        working-directory: android
+        env:
+          FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGE }}
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+
+      - name: 8. 🚀 Upload to Firebase App Distribution (prod)
+        if: matrix.flavor == 'prod'
+        run: bundle exec fastlane firebase_prod
+        working-directory: android
+        env:
+          FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID_PROD }}
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+
+      - name: 9. 🛠️ Build AAB for Prod
+        if: matrix.flavor == 'prod'
+        run: flutter build appbundle --release --flavor prod
+
+      - name: 10. 📤 Upload AAB for Prod
+        if: matrix.flavor == 'prod'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-prod-aab-${{ github.run_number }}
+          path: build/app/outputs/bundle/release/app-prod-release.aab
+
+      # This step is commented out to prevent accidental uploads to Google Play.
+      # Uncomment and configure the `release_prod` Fastlane lane when ready.
+      # - name: 11. 📤 Upload to Google Play
+      #   if: matrix.flavor == 'prod'
+      #   run: bundle exec fastlane release_prod
+      #   working-directory: android

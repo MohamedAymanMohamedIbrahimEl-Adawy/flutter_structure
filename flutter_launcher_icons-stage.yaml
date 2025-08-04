@@ -1,0 +1,12 @@
+# flutter_launcher_icons-stage.yaml
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  android_flavor: stage
+  image_path_android: "assets/images/app_icon/app_icon_android_stage.png"
+  image_path_ios: "assets/images/app_icon/app_icon_ios_stage.png"
+
+# To run build icon for all flavors run the following command
+# dart run flutter_launcher_icons:main -f flutter_launcher_icons*

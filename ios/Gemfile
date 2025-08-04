@@ -1,0 +1,6 @@
+source "https://rubygems.org"
+
+gem "fastlane"
+gem "cocoapods" # <--- ADD THIS LINE!
+# Add any other gems fastlane depends on, e.g.,
+# gem "google-cloud-storage" # if you explicitly need it there
