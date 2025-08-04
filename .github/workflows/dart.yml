@@ -123,7 +123,7 @@ jobs:
       # - name: ✅ Run unit tests
       #   run: flutter test
 
-      - name: 4. 🔐 Android Signing & Firebase Setup
+      - name: 4. 🔐 Android Signing & Firebase Setup 
         run: |
           echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
           echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/key.jks
