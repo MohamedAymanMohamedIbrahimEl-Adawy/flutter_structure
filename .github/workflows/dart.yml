@@ -150,12 +150,13 @@ jobs:
           name: release-${{ matrix.flavor }}-apk-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk
 
+      # Now, the environment variable names here match the ones in your Fastfile.
       - name: 8. 🚀 Upload to Firebase App Distribution (dev)
         if: matrix.flavor == 'dev'
         run: bundle exec fastlane firebase_dev
         working-directory: android
         env:
-          FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID_DEV }}
+          FIREBASE_APP_ID_ANDROID_DEV: ${{ secrets.FIREBASE_APP_ID_ANDROID_DEV }}
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
 
       - name: 8. 🚀 Upload to Firebase App Distribution (stage)
@@ -163,7 +164,7 @@ jobs:
         run: bundle exec fastlane firebase_stage
         working-directory: android
         env:
-          FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGE }}
+          FIREBASE_APP_ID_ANDROID_STAGE: ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGE }}
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
 
       - name: 8. 🚀 Upload to Firebase App Distribution (prod)
@@ -171,7 +172,7 @@ jobs:
         run: bundle exec fastlane firebase_prod
         working-directory: android
         env:
-          FIREBASE_APP_ID_ANDROID: ${{ secrets.FIREBASE_APP_ID_ANDROID_PROD }}
+          FIREBASE_APP_ID_ANDROID_PROD: ${{ secrets.FIREBASE_APP_ID_ANDROID_PROD }}
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
 
       - name: 9. 🛠️ Build AAB for Prod
