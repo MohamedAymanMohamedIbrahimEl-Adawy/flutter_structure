@@ -43,11 +43,26 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
+      
+      - name: 3. 🔢 Increment Flutter Version
+        run: |
+          # Read the current version from pubspec.yaml
+          VERSION_NAME=$(grep 'version:' pubspec.yaml | sed 's/version: //')
+          # Extract the version name (e.g., 1.0.0)
+          VERSION_NAME_ONLY=$(echo $VERSION_NAME | cut -d'+' -f1)
+          # Get the GitHub run number as the build number
+          BUILD_NUMBER=${{ github.run_number }}
+          # Create the new version string
+          NEW_VERSION="$VERSION_NAME_ONLY+$BUILD_NUMBER"
+          # Use sed to replace the version in pubspec.yaml
+          sed -i '' "s/version: $VERSION_NAME/version: $NEW_VERSION/" pubspec.yaml
+          echo "Updated version to $NEW_VERSION"
 
-      - name: 3. 🚀 Activate FlutterFire CLI
+
+      - name: 4. 🚀 Activate FlutterFire CLI
         run: dart pub global activate flutterfire_cli
         
-      - name: 4. 🔐 Setup SSH for Fastlane Match
+      - name: 5. 🔐 Setup SSH for Fastlane Match
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.MATCH_GIT_PRIVATE_KEY }}" | base64 --decode > ~/.ssh/match_fastlane
@@ -57,15 +72,15 @@ jobs:
             IdentityFile ~/.ssh/match_fastlane
             IdentitiesOnly yes" >> ~/.ssh/config
 
-      - name: 5. 📥 Setup Ruby
+      - name: 6. 📥 Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1'
 
-      - name: 6. 🚀 Install Fastlane
+      - name: 7. 🚀 Install Fastlane
         run: gem install fastlane
 
-      - name: 7. 🔐 Setup Firebase Config
+      - name: 8. 🔐 Setup Firebase Config
         run: |
           mkdir -p ios/Runner/firebase/${{ matrix.flavor }}
           if [ "${{ matrix.flavor }}" = "dev" ]; then
@@ -76,12 +91,12 @@ jobs:
             echo "${{ secrets.GOOGLE_SERVICE_PLIST_PROD }}" | base64 --decode > ios/Runner/firebase/prod/GoogleService-Info.plist
           fi
 
-      - name: 8. Set up App Store Connect API Key
+      - name: 9. Set up App Store Connect API Key
         run: |
           echo "${{ secrets.APP_STORE_CONNECT_P8_KEY_BASE64 }}" | base64 --decode > AuthKey.p8
           echo "APP_STORE_CONNECT_KEY_FILEPATH=$GITHUB_WORKSPACE/AuthKey.p8" >> $GITHUB_ENV
-
-      - name: 9. 🛠️ Run Fastlane for ${{ matrix.flavor }}
+        
+      - name: 10. 🛠️ Run Fastlane for ${{ matrix.flavor }}
         run: fastlane ios ${{ matrix.flavor }}
         working-directory: ios
         env:
@@ -116,8 +131,22 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
+    
+      - name: 3. 🔢 Increment Flutter Version
+        run: |
+          # Read the current version from pubspec.yaml
+          VERSION_NAME=$(grep 'version:' pubspec.yaml | sed 's/version: //')
+          # Extract the version name (e.g., 1.0.0)
+          VERSION_NAME_ONLY=$(echo $VERSION_NAME | cut -d'+' -f1)
+          # Get the GitHub run number as the build number
+          BUILD_NUMBER=${{ github.run_number }}
+          # Create the new version string
+          NEW_VERSION="$VERSION_NAME_ONLY+$BUILD_NUMBER"
+          # Use sed to replace the version in pubspec.yaml
+          sed -i '' "s/version: $VERSION_NAME/version: $NEW_VERSION/" pubspec.yaml
+          echo "Updated version to $NEW_VERSION"
 
-      - name: 3. 📦 Install dependencies
+      - name: 4.📦 Install dependencies
         run: flutter pub get
 
       # Optional steps, uncomment to enable static analysis and unit tests.
@@ -127,7 +156,7 @@ jobs:
       # - name: ✅ Run unit tests
       #   run: flutter test
 
-      - name: 4. 🔐 Android Signing & Firebase Setup 
+      - name: 5. 🔐 Android Signing & Firebase Setup 
         run: |
           echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
           echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/key.jks
@@ -135,23 +164,23 @@ jobs:
           echo "${{ secrets.FIREBASE_DISTRIBUTION_SERVICE }}" | base64 --decode > android/firebase-service-account.json
           echo "${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}" | base64 --decode > android/google-play-service-account.json
 
-      - name: 5. 🛠️ Build APK
+      - name: 6. 🛠️ Build APK
         run: flutter build apk --release --flavor ${{ matrix.flavor }}
 
-      - name: 6. 🧠 Install bundler & fastlane
+      - name: 7. 🧠 Install bundler & fastlane
         run: |
           gem install bundler
           bundle install
         working-directory: android
 
-      - name: 7. 📤 Upload APK
+      - name: 8. 📤 Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.flavor }}-apk-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk
 
       # Now, the environment variable names here match the ones in your Fastfile.
-      - name: 8. 🚀 Upload to Firebase App Distribution (dev)
+      - name: 9. 🚀 Upload to Firebase App Distribution (dev)
         if: matrix.flavor == 'dev'
         run: bundle exec fastlane firebase_dev
         working-directory: android
@@ -159,7 +188,7 @@ jobs:
           FIREBASE_APP_ID_ANDROID_DEV: ${{ secrets.FIREBASE_APP_ID_ANDROID_DEV }}
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
 
-      - name: 8. 🚀 Upload to Firebase App Distribution (stage)
+      - name: 10. 🚀 Upload to Firebase App Distribution (stage)
         if: matrix.flavor == 'stage'
         run: bundle exec fastlane firebase_stage
         working-directory: android
@@ -167,7 +196,7 @@ jobs:
           FIREBASE_APP_ID_ANDROID_STAGE: ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGE }}
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
 
-      - name: 8. 🚀 Upload to Firebase App Distribution (prod)
+      - name: 11. 🚀 Upload to Firebase App Distribution (prod)
         if: matrix.flavor == 'prod'
         run: bundle exec fastlane firebase_prod
         working-directory: android
@@ -175,11 +204,11 @@ jobs:
           FIREBASE_APP_ID_ANDROID_PROD: ${{ secrets.FIREBASE_APP_ID_ANDROID_PROD }}
           GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
 
-      - name: 9. 🛠️ Build AAB for Prod
+      - name: 12. 🛠️ Build AAB for Prod
         if: matrix.flavor == 'prod'
         run: flutter build appbundle --release --flavor prod
 
-      - name: 10. 📤 Upload AAB for Prod
+      - name: 13. 📤 Upload AAB for Prod
         if: matrix.flavor == 'prod'
         uses: actions/upload-artifact@v4
         with:
@@ -188,7 +217,7 @@ jobs:
 
       # This step is commented out to prevent accidental uploads to Google Play.
       # Uncomment and configure the `release_prod` Fastlane lane when ready.
-      # - name: 11. 📤 Upload to Google Play
+      # - name: 14. 📤 Upload to Google Play
       #   if: matrix.flavor == 'prod'
       #   run: bundle exec fastlane release_prod
       #   working-directory: android
