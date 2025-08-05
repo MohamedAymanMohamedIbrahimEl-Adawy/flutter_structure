@@ -1,0 +1,19 @@
+# This Appfile is configured to use environment variables for all sensitive information.
+# This is the recommended practice for CI/CD pipelines to ensure secrets are not exposed.
+
+# The Apple Developer Portal username, typically your Apple ID email.
+# This should be set in your GitHub Actions as the `FASTLANE_USER` secret.
+apple_id(ENV["APPLE_EMAIL"])
+
+# The App Store Connect Team ID. This is your numeric App Store Connect team ID.
+# This should be set in your GitHub Actions as the `FASTLANE_ITC_TEAM_ID` secret.
+itc_team_id(ENV["APPLE_ITC_TEAM_ID"])
+
+# The Developer Portal Team ID. This is the 10-character team ID.
+# This should be set in your GitHub Actions as the `FASTLANE_TEAM_ID` secret.
+team_id(ENV["APPLE_TEAM_ID"])
+
+# The `app_identifier` is handled per lane in the Fastfile to support
+# different app flavors (dev, stage, prod).
+# For more information about the Appfile, see:
+# https://docs.fastlane.tools/advanced/#appfile

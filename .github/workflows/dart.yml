@@ -90,6 +90,10 @@ jobs:
           MATCH_TYPE: appstore
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          # Apple credentials
+          APPLE_EMAIL: ${{ secrets.APPLE_EMAIL }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ITC_TEAM_ID: ${{ secrets.APPLE_ITC_TEAM_ID }}
 
   # ----------------------------------------
   # 🤖 Android Build Job

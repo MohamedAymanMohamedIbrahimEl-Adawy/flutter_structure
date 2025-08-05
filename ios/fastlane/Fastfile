@@ -1,0 +1,306 @@
+
+
+# Run fastlane ci cd on github
+
+default_platform(:ios)
+
+platform :ios do
+  ############################################
+  # 🔧 إعداد Xcode المطلوب (اختياري حسب CI)
+  # This lane is a good practice to ensure a consistent Xcode version.
+  ############################################
+  private_lane :use_xcode do
+    UI.header("🔧 Selecting Xcode 16.2")
+    xcode_select("/Applications/Xcode_16.2.app")
+  end
+
+  ############################################
+  # 🔐 Lane عام لتوقيع الشهادات
+  # General lane to set up code signing using `match`.
+  # This uses a dedicated CI keychain for security.
+  ############################################
+  private_lane :setup_code_signing do |options|
+    UI.header("🔐 Setting up code signing for #{options[:app_identifier]}")
+
+    # Use a temporary keychain specifically for the CI run.
+    # This prevents issues with the default keychain on the runner.
+    # إنشاء واستخدام keychain مؤقت خاص بالـ CI لتجنب مشاكل الصلاحيات.
+    setup_ci
+
+    # First, update the project team to ensure consistency.
+    # This is a critical step to prevent signing errors.
+    # خطوة حاسمة: تحديث فريق العمل في إعدادات المشروع.
+    # We will let Fastlane automatically use the team_id from the Appfile.
+    update_project_team(
+      path: "Runner.xcodeproj"
+    )
+
+    # Run `match` to sync the certificates and provisioning profiles.
+    # This will download and install the profile in the keychain.
+    # تشغيل `match` لتنزيل الشهادات والبروفايل.
+    match(
+      type: options[:type] || "appstore",
+      app_identifier: options[:app_identifier]
+    )
+    
+    # We will now explicitly set the provisioning profile and code signing identity
+    # for the `Runner` target to ensure there are no conflicts. This is the most
+    # reliable way to address the "Push Notifications" error.
+    # الآن سنقوم بتحديث إعدادات التوقيع بشكل صريح لضمان استخدام البروفايل الصحيح.
+    # هذا يحل مشكلة خاصية "Push Notifications" بشكل مباشر.
+    update_code_signing_settings(
+      path: "Runner.xcodeproj",
+      targets: ["Runner"],
+      use_automatic_signing: false,
+      profile_name: "match AppStore #{options[:app_identifier]}",
+      code_sign_identity: "Apple Distribution"
+    )
+  end
+
+  ############################################
+  # 🔁 Lane عام لبناء أي flavor
+  # General lane to build and upload any flavor.
+  # This lane has been updated to use App Store Connect API keys
+  # from environment variables, which is a more secure method
+  # than storing them directly in the Fastfile.
+  ############################################
+  private_lane :build_and_upload do |options|
+    flavor = options[:flavor]
+    identifier = options[:app_identifier]
+
+    # Ensure the correct Xcode version is used
+    # التأكد من استخدام إصدار Xcode الصحيح.
+    use_xcode
+
+    # First, run `flutter pub get` to ensure all Dart packages and
+    # the necessary `Generated.xcconfig` file are in place.
+    # خطوة جديدة: تشغيل `flutter pub get` أولاً لتوليد ملفات الإعداد اللازمة.
+    sh "flutter pub get"
+
+    
+    # Install CocoaPods dependencies. This is a crucial step to ensure
+    # all native libraries are available for the build.
+    # تثبيت CocoaPods. هذه خطوة حاسمة لضمان توفر جميع المكتبات الأصلية للبناء.
+    cocoapods(
+      clean_install: true
+    )
+
+    # Set up the code signing using match
+    # إعداد التوقيع باستخدام `match`.
+    setup_code_signing(
+      type: "appstore",
+      app_identifier: identifier
+    )
+
+    # We now dynamically set the `scheme` and `configuration` based on the flavor
+    # you provided. This resolves the `Couldn't find specified scheme` error.
+    # تم الآن تحديث `scheme` و `configuration` ديناميكيًا بناءً على الـ flavor.
+    # هذا يحل مشكلة عدم العثور على الـ scheme.
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: flavor, # Use the flavor name as the scheme
+      configuration: "Release-#{flavor}", # Use the flavor-specific release configuration
+      clean: true,
+      # `export_method` must match the `type` used in `match`.
+      # يجب أن يتطابق هذا مع `type` في `match`.
+      export_method: "app-store",
+      # Set explicit build path and output directory to prevent conflicts and ensure
+      # a clean environment for each build.
+      # تعيين مسار بناء صريح ودليل إخراج لمنع التعارضات.
+      build_path: "build/ios",
+      output_directory: "build/ios/ipa"
+    )
+
+    # To securely upload to TestFlight, you must use an App Store Connect API Key.
+    # Set the following environment variables in your CI/CD settings:
+    # - `APP_STORE_CONNECT_KEY_ID`: Your API Key ID
+    # - `APP_STORE_CONNECT_ISSUER_ID`: Your API Key Issuer ID
+    # - `APP_STORE_CONNECT_KEY_FILEPATH`: The path to your downloaded .p8 key file
+    api_key = app_store_connect_api_key(
+      key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+      issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+      key_filepath: ENV["APP_STORE_CONNECT_KEY_FILEPATH"]
+    )
+
+    # Upload to TestFlight. This will now work because `build_app`
+    # has successfully created a signed IPA.
+    # رفع التطبيق إلى TestFlight.
+    upload_to_testflight(
+      api_key: api_key,
+      skip_waiting_for_build_processing: true
+    )
+  end
+
+  ############################################
+  # 🍎 Lane لتوزيع dev
+  # Lane for dev distribution.
+  ############################################
+  lane :dev do
+    build_and_upload(
+      flavor: "dev",
+      app_identifier: "com.flutter.structure.dev"
+    )
+  end
+
+  ############################################
+  # 🍎 Lane لتوزيع stage
+  # Lane for stage distribution.
+  ############################################
+  lane :stage do
+    build_and_upload(
+      flavor: "stage",
+      app_identifier: "com.flutter.structure.stage"
+    )
+  end
+
+  ############################################
+  # 🍎 Lane لتوزيع prod
+  # Lane for prod distribution.
+  ############################################
+  lane :prod do
+    build_and_upload(
+      flavor: "prod",
+      app_identifier: "com.flutter.structure"
+    )
+  end
+end
+
+
+# # This Fastfile defines the CI/CD lanes for an iOS Flutter project.
+# # It uses private lanes for common, reusable actions and public lanes for each build flavor.
+
+# default_platform(:ios)
+
+# platform :ios do
+#   ############################################
+#   # 🔧 General Lane for Xcode Configuration
+#   # This lane ensures a consistent Xcode version is used, which is critical for CI/CD.
+#   ############################################
+#   private_lane :use_xcode do
+#     UI.header("🔧 Selecting Xcode 16.2")
+#     xcode_select("/Applications/Xcode_16.2.app")
+#   end
+
+#   ############################################
+#   # 🔐 General Lane for Code Signing
+#   # This lane handles code signing using `fastlane match`.
+#   # It uses a dedicated CI keychain and sets all necessary signing properties.
+#   ############################################
+#   private_lane :setup_code_signing do |options|
+#     UI.header("🔐 Setting up code signing for #{options[:app_identifier]}")
+
+#     # Use a temporary keychain specifically for the CI run to avoid permission issues.
+#     setup_ci
+
+#     # Use `match` to sync the certificates and provisioning profiles from a private Git repo.
+#     # The `force` parameter ensures the profile is created if it doesn't exist or is invalid.
+#     match(
+#       type: options[:type] || "appstore",
+#       app_identifier: options[:app_identifier],
+#       force: true, # Force a new profile if the existing one is outdated.
+#       profile_name: "match AppStore #{options[:app_identifier]}"
+#     )
+    
+#     # We will now explicitly set the provisioning profile and code signing identity
+#     # for the `Runner` target to prevent conflicts and ensure consistency.
+#     update_code_signing_settings(
+#       path: "Runner.xcodeproj",
+#       targets: ["Runner"],
+#       use_automatic_signing: false,
+#       profile_name: "match AppStore #{options[:app_identifier]}",
+#       code_sign_identity: "Apple Distribution"
+#     )
+
+#     # Note: `update_project_team` can be brittle. A more robust approach is to
+#     # define your team_id in an Appfile, which Fastlane will automatically use.
+#     # update_project_team(path: "Runner.xcodeproj", teamid: ENV["FASTLANE_TEAM_ID"])
+#   end
+  
+#   ############################################
+#   # 🧩 General Lane for Dependencies
+#   # This lane centralizes the installation of all necessary dependencies.
+#   ############################################
+#   private_lane :run_dependencies do
+#     UI.header("🧩 Installing Dependencies")
+#     # Run `flutter pub get` to download Dart packages and generate files.
+#     sh "flutter pub get"
+#     # Install CocoaPods dependencies to ensure all native libraries are available.
+#     cocoapods(clean_install: true)
+#   end
+
+#   ############################################
+#   # 🔁 General Lane to Build and Upload
+#   # This lane handles the full build and upload process for any flavor.
+#   ############################################
+#   private_lane :build_and_upload do |options|
+#     flavor = options[:flavor]
+#     identifier = options[:app_identifier]
+
+#     # Set up the Xcode version and install dependencies.
+#     use_xcode
+#     run_dependencies
+
+#     # Set up code signing using Fastlane Match.
+#     setup_code_signing(
+#       type: "appstore",
+#       app_identifier: identifier
+#     )
+
+#     # Build the app using the specified scheme and configuration.
+#     build_app(
+#       workspace: "Runner.xcworkspace",
+#       scheme: flavor, # Use the flavor name as the scheme.
+#       configuration: "Release-#{flavor}", # Use the flavor-specific release configuration.
+#       clean: true,
+#       export_method: "app-store", # Export method for App Store and TestFlight builds.
+#       build_path: "build/ios",
+#       output_directory: "build/ios/ipa"
+#     )
+
+#     # To securely upload to TestFlight, you must use an App Store Connect API Key.
+#     # These credentials should be set as environment variables in your GitHub Actions workflow.
+#     api_key = app_store_connect_api_key(
+#       key_id: ENV["APP_STORE_CONNECT_KEY_ID"],
+#       issuer_id: ENV["APP_STORE_CONNECT_ISSUER_ID"],
+#       # Note: The key file (.p8) must be created from a GitHub Secret and saved
+#       # to a file during the workflow run.
+#       key_filepath: ENV["APP_STORE_CONNECT_KEY_FILEPATH"]
+#     )
+
+#     # Upload the successfully built IPA to TestFlight.
+#     upload_to_testflight(
+#       api_key: api_key,
+#       skip_waiting_for_build_processing: true
+#     )
+#   end
+
+#   ############################################
+#   # 🍎 Lane for `dev` distribution
+#   ############################################
+#   lane :dev do
+#     build_and_upload(
+#       flavor: "dev",
+#       app_identifier: "com.flutter.structure.dev"
+#     )
+#   end
+
+#   ############################################
+#   # 🍎 Lane for `stage` distribution
+#   ############################################
+#   lane :stage do
+#     build_and_upload(
+#       flavor: "stage",
+#       app_identifier: "com.flutter.structure.stage"
+#     )
+#   end
+
+#   ############################################
+#   # 🍎 Lane for `prod` distribution
+#   ############################################
+#   lane :prod do
+#     build_and_upload(
+#       flavor: "prod",
+#       app_identifier: "com.flutter.structure"
+#     )
+#   end
+# end
