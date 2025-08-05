@@ -1,4 +1,5 @@
-# 🚀 Flutter CI/CD with Fastlane and GitHub Actions
+
+## 🚀 Flutter CI/CD with Fastlane and GitHub Actions
 
 This guide outlines the steps to set up a robust Continuous Integration and Continuous Deployment (CI/CD) pipeline for your Flutter project using GitHub Actions and Fastlane.
 
@@ -92,6 +93,8 @@ Create a private repository and store its URL as a GitHub secret: `MATCH_GIT_URL
 
 ### Step 3: Generate and Add a Deploy SSH Key
 
+In your local macos machine run the following: 
+
 ```bash
 ssh-keygen -t rsa -b 4096 -C "fastlane-match-deploy-key" -f ~/.ssh/fastlane-match-deploy
 pbcopy < ~/.ssh/fastlane-match-deploy.pub
@@ -101,6 +104,8 @@ Add the public key to the GitHub repo (Settings > Deploy keys > Add key, allow w
 
 ### Step 4: Store the Private Key as a GitHub Secret
 
+In your local macos machine run the following: 
+
 ```bash
 base64 -i ~/.ssh/fastlane-match-deploy | tr -d '\\n' | pbcopy
 ```
@@ -108,6 +113,8 @@ base64 -i ~/.ssh/fastlane-match-deploy | tr -d '\\n' | pbcopy
 Save it as `MATCH_GIT_PRIVATE_KEY`.
 
 ### Step 5: Configure and Run Fastlane Match
+
+In your local macos machine run the following: 
 
 ```bash
 cd ios
@@ -137,7 +144,7 @@ base64 -i AuthKey_XXXXXXXX.p8 > auth.base64.txt
 
 ## 📝 7. GitHub Actions Secrets Summary
 
-| Secret Name                     | Description                                  |
+| Secret Name                     | Description                                 |
 |--------------------------------|----------------------------------------------|
 | ANDROID_GOOGLE_SERVICE_JSON    | `google-services.json` file for Android      |
 | APPLE_EMAIL                    | Apple ID email                               |
@@ -159,6 +166,7 @@ base64 -i AuthKey_XXXXXXXX.p8 > auth.base64.txt
 | MATCH_GIT_PRIVATE_KEY          | Private SSH key                              |
 | MATCH_GIT_URL                  | Match repo URL                               |
 | MATCH_PASSWORD                 | Match password                               |
+|--------------------------------|----------------------------------------------|
 
 ---
 
@@ -480,43 +488,230 @@ team_id(ENV["APPLE_TEAM_ID"])
 ضع هذا الملف داخل `.github/workflows/dart.yml`:
 
 ```yaml
-name: Flutter CI/CD
+# 🍎🤖 iOS and Android CI/CD Flutter
 
+# ----------------------------------------
+# 1. Workflow Triggers
+# The workflow runs on a manual dispatch or a push to the master branch.
+# ----------------------------------------
 on:
+  workflow_dispatch:
   push:
-    branches: [ main ]
-  pull_request:
+    branches:
+      - master
 
+# ----------------------------------------
+# 2. Environment Variables
+# These variables are accessible throughout the entire workflow.
+# ----------------------------------------
+env:
+  FLUTTER_VERSION: "3.32.8"
+
+# ----------------------------------------
+# 3. Jobs Configuration
+# This workflow contains two main jobs: one for iOS and one for Android.
+# Each job uses a matrix strategy to handle different build flavors.
+# ----------------------------------------
 jobs:
-  android:
-    name: Android Build and Distribute
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.19.0"
-      - run: flutter pub get
-      - run: flutter build apk --flavor dev -t lib/main_dev.dart
-
-  ios:
-    name: iOS Build and TestFlight
+  # ----------------------------------------
+  # 🍎 iOS Build Job
+  # Builds and uploads the iOS app to TestFlight for each flavor.
+  # ----------------------------------------
+  ios-build:
+    name: 🍏 iOS Build (${{ matrix.flavor }})
     runs-on: macos-latest
-    env:
-      MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
-      FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+    strategy:
+      matrix:
+        flavor: [dev, prod, stage]
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
+      - name: 1. 🔄 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 2. 🧩 Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.19.0"
-      - run: flutter pub get
-      - run: bundle install
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      
+      - name: 3. 🔢 Increment Flutter Version
+        run: |
+          # Read the current version from pubspec.yaml
+          VERSION_NAME=$(grep 'version:' pubspec.yaml | sed 's/version: //')
+          # Extract the version name (e.g., 1.0.0)
+          VERSION_NAME_ONLY=$(echo $VERSION_NAME | cut -d'+' -f1)
+          # Get the GitHub run number as the build number
+          BUILD_NUMBER=${{ github.run_number }}
+          # Create the new version string
+          NEW_VERSION="$VERSION_NAME_ONLY+$BUILD_NUMBER"
+          # Use sed to replace the version in pubspec.yaml
+          sed -i '' "s/version: $VERSION_NAME/version: $NEW_VERSION/" pubspec.yaml
+          echo "Updated version to $NEW_VERSION"
+
+
+      - name: 4. 🚀 Activate FlutterFire CLI
+        run: dart pub global activate flutterfire_cli
+        
+      - name: 5. 🔐 Setup SSH for Fastlane Match
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.MATCH_GIT_PRIVATE_KEY }}" | base64 --decode > ~/.ssh/match_fastlane
+          chmod 600 ~/.ssh/match_fastlane
+          echo "Host github.com
+            HostName github.com
+            IdentityFile ~/.ssh/match_fastlane
+            IdentitiesOnly yes" >> ~/.ssh/config
+
+      - name: 6. 📥 Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+
+      - name: 7. 🚀 Install Fastlane
+        run: gem install fastlane
+
+      - name: 8. 🔐 Setup Firebase Config
+        run: |
+          mkdir -p ios/Runner/firebase/${{ matrix.flavor }}
+          if [ "${{ matrix.flavor }}" = "dev" ]; then
+            echo "${{ secrets.GOOGLE_SERVICE_PLIST_DEV }}" | base64 --decode > ios/Runner/firebase/dev/GoogleService-Info.plist
+          elif [ "${{ matrix.flavor }}" = "stage" ]; then
+            echo "${{ secrets.GOOGLE_SERVICE_PLIST_STAGE }}" | base64 --decode > ios/Runner/firebase/stage/GoogleService-Info.plist
+          elif [ "${{ matrix.flavor }}" = "prod" ]; then
+            echo "${{ secrets.GOOGLE_SERVICE_PLIST_PROD }}" | base64 --decode > ios/Runner/firebase/prod/GoogleService-Info.plist
+          fi
+
+      - name: 9. Set up App Store Connect API Key
+        run: |
+          echo "${{ secrets.APP_STORE_CONNECT_P8_KEY_BASE64 }}" | base64 --decode > AuthKey.p8
+          echo "APP_STORE_CONNECT_KEY_FILEPATH=$GITHUB_WORKSPACE/AuthKey.p8" >> $GITHUB_ENV
+        
+      - name: 10. 🛠️ Run Fastlane for ${{ matrix.flavor }}
+        run: fastlane ios ${{ matrix.flavor }}
         working-directory: ios
-      - run: bundle exec fastlane dev
-        working-directory: ios
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
+          MATCH_TYPE: appstore
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          # Apple credentials
+          APPLE_EMAIL: ${{ secrets.APPLE_EMAIL }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ITC_TEAM_ID: ${{ secrets.APPLE_ITC_TEAM_ID }}
+
+  # ----------------------------------------
+  # 🤖 Android Build Job
+  # Builds and uploads the Android app to Firebase App Distribution for each flavor.
+  # Also builds AAB for prod and uploads to Google Play.
+  # ----------------------------------------
+  android-build:
+    name: 🤖 Android Build (${{ matrix.flavor }})
+    runs-on: macos-latest
+
+    strategy:
+      matrix:
+        flavor: [dev, stage, prod]
+
+    steps:
+      - name: 1. 🔄 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 2. 🧩 Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+    
+      - name: 3. 🔢 Increment Flutter Version
+        run: |
+          # Read the current version from pubspec.yaml
+          VERSION_NAME=$(grep 'version:' pubspec.yaml | sed 's/version: //')
+          # Extract the version name (e.g., 1.0.0)
+          VERSION_NAME_ONLY=$(echo $VERSION_NAME | cut -d'+' -f1)
+          # Get the GitHub run number as the build number
+          BUILD_NUMBER=${{ github.run_number }}
+          # Create the new version string
+          NEW_VERSION="$VERSION_NAME_ONLY+$BUILD_NUMBER"
+          # Use sed to replace the version in pubspec.yaml
+          sed -i '' "s/version: $VERSION_NAME/version: $NEW_VERSION/" pubspec.yaml
+          echo "Updated version to $NEW_VERSION"
+
+      - name: 4.📦 Install dependencies
+        run: flutter pub get
+
+      # Optional steps, uncomment to enable static analysis and unit tests.
+      # - name: 🔍 Analyze code
+      #   run: flutter analyze
+
+      # - name: ✅ Run unit tests
+      #   run: flutter test
+
+      - name: 5. 🔐 Android Signing & Firebase Setup 
+        run: |
+          echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
+          echo "${{ secrets.KEYSTORE }}" | base64 --decode > android/app/key.jks
+          echo "${{ secrets.ANDROID_GOOGLE_SERVICE_JSON }}" | base64 --decode > android/app/google-services.json
+          echo "${{ secrets.FIREBASE_DISTRIBUTION_SERVICE }}" | base64 --decode > android/firebase-service-account.json
+          echo "${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT }}" | base64 --decode > android/google-play-service-account.json
+
+      - name: 6. 🛠️ Build APK
+        run: flutter build apk --release --flavor ${{ matrix.flavor }}
+
+      - name: 7. 🧠 Install bundler & fastlane
+        run: |
+          gem install bundler
+          bundle install
+        working-directory: android
+
+      - name: 8. 📤 Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.flavor }}-apk-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk
+
+      # Now, the environment variable names here match the ones in your Fastfile.
+      - name: 9. 🚀 Upload to Firebase App Distribution (dev)
+        if: matrix.flavor == 'dev'
+        run: bundle exec fastlane firebase_dev
+        working-directory: android
+        env:
+          FIREBASE_APP_ID_ANDROID_DEV: ${{ secrets.FIREBASE_APP_ID_ANDROID_DEV }}
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+
+      - name: 10. 🚀 Upload to Firebase App Distribution (stage)
+        if: matrix.flavor == 'stage'
+        run: bundle exec fastlane firebase_stage
+        working-directory: android
+        env:
+          FIREBASE_APP_ID_ANDROID_STAGE: ${{ secrets.FIREBASE_APP_ID_ANDROID_STAGE }}
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+
+      - name: 11. 🚀 Upload to Firebase App Distribution (prod)
+        if: matrix.flavor == 'prod'
+        run: bundle exec fastlane firebase_prod
+        working-directory: android
+        env:
+          FIREBASE_APP_ID_ANDROID_PROD: ${{ secrets.FIREBASE_APP_ID_ANDROID_PROD }}
+          GOOGLE_APPLICATION_CREDENTIALS: firebase-service-account.json
+
+      - name: 12. 🛠️ Build AAB for Prod
+        if: matrix.flavor == 'prod'
+        run: flutter build appbundle --release --flavor prod
+
+      - name: 13. 📤 Upload AAB for Prod
+        if: matrix.flavor == 'prod'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-prod-aab-${{ github.run_number }}
+          path: build/app/outputs/bundle/release/app-prod-release.aab
+
+      # This step is commented out to prevent accidental uploads to Google Play.
+      # Uncomment and configure the `release_prod` Fastlane lane when ready.
+      - name: 14. 📤 Upload to Google Play
+        if: matrix.flavor == 'prod'
+        run: bundle exec fastlane release_prod
+        working-directory: android
+
 ```
 
 ---
@@ -539,3 +734,13 @@ jobs:
 ---
 
 🎉 **Congratulations!** You've set up a full CI/CD pipeline for your Flutter app using Fastlane and GitHub Actions.
+
+---
+
+## ✍️ Author
+
+**Mohamed Adawy**
+
+---
+
+

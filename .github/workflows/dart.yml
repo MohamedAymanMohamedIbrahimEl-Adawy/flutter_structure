@@ -33,7 +33,7 @@ jobs:
 
     strategy:
       matrix:
-        flavor: []
+        flavor: [dev, prod, stage]
 
     steps:
       - name: 1. 🔄 Checkout code
