@@ -1,4 +1,4 @@
-# 📱 Clean Architecture Mobile App
+# 📱 Clean Architecture Mobile App With CI CD Using Fastlane and Github
 
 This project follows a modular, scalable, and testable architecture using a combination of **feature-based** and **layered architecture** patterns.
 
@@ -202,7 +202,7 @@ flutter test
 
 ---
 
-## 🚀 Flutter CI/CD with Fastlane and GitHub Actions
+# 🚀 Flutter CI/CD with Fastlane and GitHub Actions
 
 This guide outlines the steps to set up a robust Continuous Integration and Continuous Deployment (CI/CD) pipeline for your Flutter project using GitHub Actions and Fastlane.
 
