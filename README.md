@@ -369,7 +369,7 @@ base64 -i AuthKey_XXXXXXXX.p8 > auth.base64.txt
 | MATCH_GIT_PRIVATE_KEY          | Private SSH key                              |
 | MATCH_GIT_URL                  | Match repo URL                               |
 | MATCH_PASSWORD                 | Match password                               |
-|--------------------------------|----------------------------------------------|
+|                                                                               |
 
 ---
 
