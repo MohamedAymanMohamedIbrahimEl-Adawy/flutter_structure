@@ -294,6 +294,8 @@ cd ..
 
 Create a private repository and store its URL as a GitHub secret: `MATCH_GIT_URL`
 
+Repo url should be like that --> git@github.com:yourUsername/repoName.git
+
 ### Step 3: Generate and Add a Deploy SSH Key
 
 In your local macos machine run the following: 
