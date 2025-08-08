@@ -299,6 +299,7 @@ Repo url should be like that --> git@github.com:yourUsername/repoName.git
 ### Step 3: Generate and Add a Deploy SSH Key
 
 In your local macos machine run the following: 
+And don't use password
 
 ```bash
 ssh-keygen -t rsa -b 4096 -C "fastlane-match-deploy-key" -f ~/.ssh/fastlane-match-deploy
@@ -313,6 +314,8 @@ In your local macos machine run the following:
 
 ```bash
 base64 -i ~/.ssh/fastlane-match-deploy | tr -d '\\n' | pbcopy
+or
+cat ~/.ssh/fastlane-sunset3-admin | base64 | pbcopy
 ```
 
 Save it as `MATCH_GIT_PRIVATE_KEY`.
